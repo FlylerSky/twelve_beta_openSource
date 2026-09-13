@@ -1,0 +1,37 @@
+rules_version = '2';
+
+// LƯU Ý: Backend dùng Firebase Admin SDK nên KHÔNG bị giới hạn bởi rules này.
+// Rules này chỉ áp dụng cho các truy cập trực tiếp từ Frontend (Firebase Client SDK),
+// ví dụ: đăng nhập, đọc version, đọc danh sách quốc gia công khai.
+// Toàn bộ thao tác GHI (create/update/delete) dữ liệu nghiệp vụ (posts, comments,
+// reactions, blogs, users...) nên đi qua Backend API để đảm bảo kiểm soát được
+// (kiểm tra quyền SA/RA/LLA, sanitize HTML, đếm like/comment, mã kích hoạt, v.v...)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Ai cũng đọc được version & danh sách quốc gia, không ai ghi trực tiếp
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /countries/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Hồ sơ user: cho phép đọc công khai (đã ẩn field nhạy cảm ở tầng API),
+    // nhưng để an toàn tuyệt đối, chặn luôn đọc/ghi trực tiếp qua client SDK —
+    // mọi thao tác đi qua Backend API (đã lọc field trả về).
+    match /users/{uid} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // Mọi collection nghiệp vụ khác: chỉ Backend (Admin SDK) mới truy cập được.
+    match /{document=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}
