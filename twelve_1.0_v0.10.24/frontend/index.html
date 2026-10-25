@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Twelve</title>
+    <meta name="description" content="Twelve - Nền tảng mạng xã hội chia sẻ bài viết." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Google+Sans:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Cloudflare Turnstile (CAPTCHA) — vá báo cáo bảo mật #4 (v0.8.3).
+         Script tải async/defer, không chặn render trang; chỉ THỰC SỰ được
+         dùng ở trang đăng ký khi có VITE_TURNSTILE_SITE_KEY (xem
+         src/components/TurnstileWidget.jsx). Nếu không cấu hình site key,
+         script này coi như không dùng tới, không ảnh hưởng gì trang khác. -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
+    <!-- v0.9.0 [DARK MODE] — chống "nháy sáng" (flash of wrong theme) khi tải
+         trang: đọc lựa chọn giao diện đã lưu và set màu nền ngay TRƯỚC khi
+         React chạy (chi tiết trong public/theme-init.js).
+         v0.10.18: TÁCH khỏi script inline ra file tĩnh để CSP không cần
+         'unsafe-inline' cho script. PHẢI là thẻ script ĐỒNG BỘ (không
+         async/defer/module) đặt trong <head> — chỉ script đồng bộ mới chạy
+         trước lần vẽ đầu tiên, giữ đúng hiệu quả chống nháy như bản inline. -->
+    <script src="/theme-init.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

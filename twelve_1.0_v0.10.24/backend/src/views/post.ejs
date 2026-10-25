@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= post.title %> | Twelve</title>
+  <meta name="description" content="<%= post.excerpt || post.title %>" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+
+  <!-- Open Graph / SEO -->
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Twelve" />
+  <meta property="og:title" content="<%= post.title %>" />
+  <meta property="og:description" content="<%= post.excerpt || post.title %>" />
+  <% if (post.coverImageUrl) { %>
+  <meta property="og:image" content="<%= post.coverImageUrl %>" />
+  <% } %>
+  <meta property="og:url" content="<%= canonicalUrl %>" />
+  <meta property="og:locale" content="vi_VN" />
+  <link rel="canonical" href="<%= canonicalUrl %>" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="<%= post.title %>" />
+  <meta name="twitter:description" content="<%= post.excerpt || post.title %>" />
+  <% if (post.coverImageUrl) { %>
+  <meta name="twitter:image" content="<%= post.coverImageUrl %>" />
+  <% } %>
+
+  <script type="application/ld+json" nonce="<%= cspNonce %>">
+    <%- safeJsonForScript({
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": post.title,
+      "description": post.excerpt || post.title,
+      "image": post.coverImageUrl || undefined,
+      "author": { "@type": "Person", "name": post.author ? post.author.displayName : "Twelve" },
+      "datePublished": post.createdAt || undefined,
+      "mainEntityOfPage": { "@type": "WebPage", "@id": canonicalUrl },
+      "interactionStatistic": [
+        { "@type": "InteractionCounter", "interactionType": "https://schema.org/ViewAction", "userInteractionCount": post.viewCount || 0 },
+        { "@type": "InteractionCounter", "interactionType": "https://schema.org/LikeAction", "userInteractionCount": post.likeCount || 0 },
+        { "@type": "InteractionCounter", "interactionType": "https://schema.org/DislikeAction", "userInteractionCount": post.dislikeCount || 0 },
+        { "@type": "InteractionCounter", "interactionType": "https://schema.org/CommentAction", "userInteractionCount": post.commentCount || 0 },
+        { "@type": "InteractionCounter", "interactionType": "https://schema.org/ShareAction", "userInteractionCount": post.shareCount || 0 }
+      ],
+      "additionalProperty": [
+        {
+          "@type": "PropertyValue",
+          "name": "postScore",
+          "value": post.postScore || 0,
+          "description": "Điểm bài viết: 1 view=+1, 1 like=+2, 1 dislike=-2, 1 comment=+3, 1 share=+4"
+        }
+      ]
+    }) %>
+  </script>
+  <style nonce="<%= cspNonce %>">
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #1c1b1f; max-width: 720px; margin: 0 auto; padding: 16px; background: #fffbfe; }
+    .post-author { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .post-author img { border-radius: 50%; object-fit: cover; }
+    h1 { font-size: 1.75rem; margin: 0 0 8px; word-break: break-word; }
+    time { color: #49454f; font-size: 0.875rem; }
+    .cover { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 12px; margin: 16px 0; }
+    .hashtags { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+    .hashtag { font-size: 0.8125rem; color: #6750a4; background: rgba(103,80,164,0.08); border-radius: 999px; padding: 2px 10px; text-decoration: none; }
+    .hashtag:hover { background: rgba(103,80,164,0.16); }
+    .post-content { margin: 16px 0; }
+    .post-content img, .post-content video { max-width: 100%; height: auto; border-radius: 8px; }
+    .post-content iframe { max-width: 100%; width: 100%; aspect-ratio: 16/9; border: 0; border-radius: 8px; }
+    .reactions { margin-top: 16px; color: #49454f; font-size: 0.875rem; }
+    #comments-root { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e0e0e0; color: #49454f; }
+    .app-link { display: inline-block; margin-top: 12px; color: #6750A4; text-decoration: none; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <!--
+    Trang Server-Side Render: Google Bot, AI agent (Gemini, ChatGPT, Claude…)
+    và mọi request không phải "user navigation" thật đều nhận HTML tĩnh này
+    (xem frontend/middleware.js). Nội dung bài viết nằm sẵn trong DOM —
+    không cần chạy JavaScript để đọc được.
+    Phần BÌNH LUẬN cố ý KHÔNG SSR (nặng tải), chỉ placeholder.
+  -->
+  <article id="post-root" data-post-id="<%= post.id %>">
+    <header>
+      <% if (post.author) { %>
+      <div class="post-author">
+        <% if (post.author.avatarUrl) { %>
+        <img src="<%= post.author.avatarUrl %>" alt="<%= post.author.displayName %>" width="40" height="40" />
+        <% } %>
+        <span><%= post.author.displayName %></span>
+        <% if (post.author.tagName) { %>
+        <span><%= post.author.tagName %></span>
+        <% } %>
+      </div>
+      <% } %>
+      <h1><%= post.title %></h1>
+      <% if (Array.isArray(post.hashtags) && post.hashtags.length > 0) { %>
+      <div class="hashtags">
+        <% post.hashtags.forEach(function(tag) { %>
+        <a class="hashtag" href="<%= hashtagBaseUrl %><%= encodeURIComponent(tag) %>"><%= tag %></a>
+        <% }); %>
+      </div>
+      <% } %>
+      <% if (post.createdAt) { %>
+      <time datetime="<%= post.createdAt %>"><%= post.createdAt %></time>
+      <% } %>
+    </header>
+
+    <% if (post.coverImageUrl) { %>
+    <img class="cover" src="<%= post.coverImageUrl %>" alt="<%= post.title %>" />
+    <% } %>
+
+    <!-- Nội dung Quill.js đã được sanitize ở backend trước khi lưu -->
+    <div class="post-content"><%- post.contentHtml %></div>
+
+    <div class="reactions">
+      <span id="view-count"><%= post.viewCount || 0 %> lượt xem</span>
+      ·
+      <span id="ai-view-count"><%= post.aiViewCount || 0 %> lượt xem bởi Bot A.I</span>
+      ·
+      <span id="like-count"><%= post.likeCount %> thích</span>
+      ·
+      <span id="dislike-count"><%= post.dislikeCount %> không thích</span>
+      ·
+      <span><%= post.commentCount || 0 %> bình luận</span>
+      ·
+      <span id="share-count"><%= post.shareCount || 0 %> lượt chia sẻ</span>
+      ·
+      <span id="post-score"><%= post.postScore || 0 %> điểm bài viết</span>
+    </div>
+  </article>
+
+  <!-- Vùng bình luận: KHÔNG SSR -->
+  <section id="comments-root" data-comment-count="<%= post.commentCount || 0 %>">
+    <p>Phần bình luận được tải phía client. Tổng số: <%= post.commentCount || 0 %>.</p>
+  </section>
+
+  <p><a class="app-link" href="<%= canonicalUrl %>">Mở trên Twelve (bản đầy đủ)</a></p>
+
+  <script nonce="<%= cspNonce %>">
+    window.__TWELVE_SSR_POST__ = <%- safeJsonForScript(post) %>;
+  </script>
+</body>
+</html>
