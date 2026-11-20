@@ -1,0 +1,116 @@
+rules_version = '2';
+
+// LƯU Ý: Backend dùng Firebase Admin SDK nên KHÔNG bị giới hạn bởi rules này.
+// Rules này chỉ áp dụng cho các truy cập trực tiếp từ Frontend (Firebase Client SDK),
+// ví dụ: đăng nhập, đọc version, đọc danh sách quốc gia công khai, onSnapshot real-time.
+// Toàn bộ thao tác GHI (create/update/delete) dữ liệu nghiệp vụ (posts, comments,
+// reactions, blogs, users...) nên đi qua Backend API để đảm bảo kiểm soát được
+// (kiểm tra quyền SA/RA/LLA, sanitize HTML, đếm like/comment, mã kích hoạt, v.v...)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // v1.1 [TW-07 — vá từ 2.5.3] — `config/*` KHÔNG còn đọc công khai. Trước đây rule này mở `read` cho mọi người, trong khi `config/` thật ra chứa
+    // `version`, `embedDomains` (có `updatedByUid` = UID của tài khoản SA) và `trendingState` — nên bất kỳ ai cũng đọc được UID của SA qua REST không cần token.
+    // Frontend KHÔNG đọc `config/*` qua Client SDK (đã grep toàn frontend/src 0.10.24: chỉ `users/{uid}`, `posts`, `blogs` và subcollection `comments`;
+    // phiên bản đọc qua API `/api/version`), còn backend dùng Admin SDK nên không bị rules chi phối ⇒ khoá hẳn là an toàn.
+    // THỨ TỰ DEPLOY: deploy backend → frontend → rules SAU CÙNG.
+    match /config/{docId} {
+      allow read, write: if false;
+    }
+
+    // Ai cũng đọc được danh sách quốc gia, không ai ghi trực tiếp
+    match /countries/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Hồ sơ user: cho phép CHÍNH CHỦ đọc document của mình (để frontend dùng
+    // onSnapshot real-time lắng nghe thay đổi Điểm tài khoản). Mọi người khác
+    // (kể cả user khác) đều bị chặn. Toàn bộ ghi vẫn đi qua Backend API.
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+    // v0.8.25: Audit log positiveScore. (Trước 1.1: chính chủ đọc được lịch sử điểm của mình.)
+    // v1.1 [TW-13 — vá từ 2.5.3] — KHOÁ HẲN. Log điểm "share" ghi `relatedUid` = UID của NGƯỜI MỞ link chia sẻ (tài khoản đã đăng nhập) vào log của NGƯỜI CHIA SẺ; vì chủ log
+    // đọc được bằng Client SDK nên bất kỳ ai tạo link chia sẻ đều liệt kê được UID của mọi tài khoản đã mở link của họ — một dạng theo dõi không công bố.
+    // Frontend không đọc `positiveScoreLogs` ở bất kỳ đâu (đã grep) và backend dùng Admin SDK ⇒ khoá là an toàn.
+    match /users/{uid}/positiveScoreLogs/{logId} {
+      allow read, write: if false;
+    }
+
+    // v0.8.24: Bài viết & Blog là nội dung CÔNG KHAI — ai cũng xem được qua
+    // API, vậy cho phép Client SDK đọc trực tiếp document gốc để onSnapshot
+    // real-time cập nhật thông số (likeCount, commentCount, shareCount,
+    // viewCount, postScore...) lên UI tức thì, không cần F5.
+    // CHỈ đọc document chính — subcollection (reactions, shares, views...)
+    // vẫn bị rule `{document=**}` bên dưới chặn hoàn toàn. GHI vẫn cấm.
+    //
+    // v0.9.6 [CRITICAL]: `allow read: if true` cũ cho phép cả `get` (đọc 1
+    // document đã biết id — dùng cho mọi onSnapshot thật của app, xem
+    // PostCard.jsx/PostDetailPage.jsx/AuthContext.jsx) LẪN `list` (truy vấn
+    // TOÀN BỘ collection). Vì đây là quyền của Firebase Client SDK, `list`
+    // cũng lộ ra qua Firestore REST API công khai — không cần token, không
+    // đi qua Express nên KHÔNG bị globalLimiter/reactLimiter... giới hạn —
+    // cho phép quét hàng loạt toàn bộ bài viết/blog/bình luận chỉ bằng
+    // Firebase config (vốn public trong bundle frontend). Đã xác nhận thực
+    // tế đọc được 39 bài viết đầy đủ chỉ bằng 1 request `pageSize=100`.
+    //
+    // Cách vá KHÔNG phá vỡ real-time UI (xem CHANGELOG-v0.9.6.md): tách
+    // riêng `get` (vẫn mở hoàn toàn — mọi onSnapshot thật của app chỉ đọc
+    // 1 document theo id đã biết, dùng `get`) và `list` (giới hạn tối đa
+    // 50 document/lượt truy vấn — khớp đúng giới hạn `limit(50)` đã áp
+    // dụng ở CommentModal.jsx/PostDetailPage.jsx, và dư sức cho listener
+    // "bài mới" ở IndexPage.jsx vốn chỉ dùng `limit(1)`). Kẻ tấn công vẫn
+    // có thể phân trang 50 document/lần bằng pageToken, nhưng chậm hơn
+    // nhiều so với 1 request lấy trọn — đây là lớp phòng thủ bổ sung, KHÔNG
+    // phải chặn tuyệt đối (chặn tuyệt đối sẽ phá vỡ tính năng real-time).
+    match /posts/{postId} {
+      allow get: if true;
+      allow list: if request.query.limit <= 50;
+      allow write: if false;
+    }
+
+    // v1.1 [BẢO MẬT — vá từ 2.0.4] — blog NHÁP (isPublished != true) không được đọc công khai (trước đây `get: if true` nên ai biết id là đọc được bản nháp qua REST).
+    //  - get: blog đã xuất bản, hoặc chính tác giả (để xem trước bản nháp của mình).
+    //  - list: CHỈ cho truy vấn có where("isPublished","==",true) (rules chỉ chấp nhận truy vấn mà điều kiện được chứng minh từ chính bộ lọc của truy vấn).
+    // Frontend 0.10.24 không liệt kê `blogs` bằng Client SDK (chỉ `get` theo id ở PostCard/PostDetailPage), nên không bị ảnh hưởng.
+    match /blogs/{blogId} {
+      allow get: if resource.data.isPublished == true
+                 || (request.auth != null && request.auth.uid == resource.data.authorUid);
+      allow list: if request.query.limit <= 50 && resource.data.isPublished == true;
+      allow write: if false;
+    }
+
+    // v0.8.24: Bình luận cũng công khai (đã hiển thị qua API) — cho phép đọc
+    // real-time để modal bình luận cập nhật tức thì khi có người khác comment.
+    // v0.9.6 [CRITICAL]: cùng lý do như trên — giới hạn `list` tối đa 50.
+    match /posts/{postId}/comments/{commentId} {
+      allow get: if true;
+      allow list: if request.query.limit <= 50;
+      allow write: if false;
+    }
+
+    // v1.1 [vá từ 2.0.4]: bình luận của blog nháp cũng không được đọc (kiểm tra qua doc blog cha).
+    match /blogs/{blogId}/comments/{commentId} {
+      allow get: if get(/databases/$(database)/documents/blogs/$(blogId)).data.isPublished == true;
+      allow list: if request.query.limit <= 50
+                  && get(/databases/$(database)/documents/blogs/$(blogId)).data.isPublished == true;
+      allow write: if false;
+    }
+
+    // v0.10.20: sổ đăng ký tài nguyên upload (`assets`) — chỉ Backend (Admin SDK) đọc/ghi.
+    // Khai báo tường minh dù rule `{document=**}` bên dưới đã chặn, để sau này không ai
+    // vô tình mở nhầm khi sửa rules (chứa uid chủ sở hữu + đường dẫn file).
+    match /assets/{assetId} {
+      allow read, write: if false;
+    }
+
+    // Mọi collection nghiệp vụ khác: chỉ Backend (Admin SDK) mới truy cập được.
+    match /{document=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}
